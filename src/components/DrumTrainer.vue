@@ -171,7 +171,8 @@ import {
 // Количество отображаемых шагов (16 = 4 такта по 4 доли)
 const BEATS_TO_SHOW = 16;
 // Время, на которое мы планируем вперёд
-const SCHEDULE_AHEAD_TIME = 0.5;
+const SCHEDULE_AHEAD_TIME = 0.1; // Уменьшаем время планирования
+const CHECK_AHEAD_INTERVAL = 25; // Интервал проверки в миллисекундах
 
 // Темп (BPM)
 const tempo = ref(90);
@@ -255,106 +256,108 @@ const getInstrumentPosition = (instrument) => {
 
 // Генерация более «случайного» паттерна для каждого инструмента
 const generateRandomPattern = (instrument) => {
-    // Список фигур (см. ваш код)
+    // Список базовых фигур для каждого инструмента
     const rhythmicFigures = {
         kick: [
-            [0], [0, 2], [0, 3], [0, 2, 4], [0, 1, 2], [0, 3, 6],
-            [0, 1, 3, 4], [0, 2, 3, 5], [1, 2, 3], [0, 1, 3, 5],
-            [2, 3, 5, 6], [0, 2, 4, 6]
+            [0], [4], [8], [12], // Одиночные удары на сильные доли
+            [0, 8], [4, 12], // Пары на сильных долях
+            [0, 6], [2, 8], [4, 10], [6, 12], // Синкопы
+            [0, 4, 8], [4, 8, 12], // Тройки
+            [0, 3, 8, 11], [2, 6, 10, 14] // Сложные фигуры
         ],
         snare: [
-            [0], [0, 2], [0, 3], [0, 1], [0, 2, 3], [0, 1, 3],
-            [0, 1, 2, 3], [1, 2, 3], [0, 2, 3, 5], [0, 1, 3, 4],
-            [2, 3], [0, 1, 2]
+            [4], [12], // Классика на 2 и 4
+            [4, 12], // Стандартный бэк-бит
+            [4, 10], [6, 12], // Синкопы
+            [4, 7, 12], [4, 12, 14], // Триоли
+            [2, 4, 12, 14], [4, 7, 12, 15] // Сложные фигуры
         ],
         hihat: [
-            [0, 2], [0, 1, 2, 3], [0, 2, 3], [0, 1, 3], [1, 3],
-            [0, 1, 2], [0, 1, 2, 3, 4], [1, 2, 3, 4], [0, 2, 4, 6],
-            [0, 1, 3, 4, 6], [1, 2, 4, 5], [0, 1, 3, 5]
+            [0, 4, 8, 12], // Четверти
+            [0, 2, 4, 6, 8, 10, 12, 14], // Восьмые
+            [0, 3, 6, 9, 12, 15], // Триоли
+            [0, 2, 4, 7, 8, 10, 12, 15], // Смешанный ритм
+            [0, 1, 4, 5, 8, 9, 12, 13] // Шаффл
         ],
         ride: [
-            [0, 2], [0, 3], [0, 2, 4], [1, 3], [0, 1, 3],
-            [0, 2, 3, 4], [0, 1, 2, 4, 5], [1, 2, 4, 5],
-            [0, 2, 3, 5], [0, 1, 3, 4, 6], [2, 3, 5, 6], [0, 1, 2, 3, 5]
+            [0, 4, 8, 12], // Четверти
+            [0, 6, 8, 14], // Синкопы
+            [0, 3, 6, 9, 12, 15], // Триоли
+            [0, 2, 6, 8, 10, 14], // Джазовый ритм
+            [0, 4, 7, 10, 12, 15] // Латинский ритм
         ],
     };
 
     let pattern = new Set();
-
-    // Генерация померно (4 такта)
-    for (let measure = 0; measure < 4; measure++) {
-        const measureStart = measure * 4;
-        const figures = rhythmicFigures[instrument];
-
-        // 1-3 случайных фигур
-        const numFigures = Math.floor(Math.random() * 3) + 1;
-        for (let i = 0; i < numFigures; i++) {
-            const figure = figures[Math.floor(Math.random() * figures.length)];
-            const offset = Math.floor(Math.random() * 2);
-            figure.forEach(beat => {
-                const adjustedBeat = measureStart + ((beat + offset) % 4);
-                if (adjustedBeat < measureStart + 4) {
-                    pattern.add(adjustedBeat);
-                }
-            });
+    
+    // Выбираем базовую фигуру для всего паттерна
+    const baseFigure = rhythmicFigures[instrument][
+        Math.floor(Math.random() * rhythmicFigures[instrument].length)
+    ];
+    
+    // Применяем базовую фигуру, но сдвигаем все ноты на один такт вперед
+    baseFigure.forEach(beat => {
+        // Сдвигаем все ноты на 4 бита вперед (пропускаем первый такт)
+        const shiftedBeat = beat + 4;
+        if (shiftedBeat < BEATS_TO_SHOW) {
+            pattern.add(shiftedBeat);
         }
-
-        // + одна случайная нота
-        if (Math.random() < 0.4) {
-            const randomBeat = measureStart + Math.floor(Math.random() * 4);
-            pattern.add(randomBeat);
-        }
-
-        // Доп. правила
-        if (instrument === 'hihat') {
-            if (Math.random() < 0.3) {
-                for (let i = measureStart; i < measureStart + 4; i++) {
-                    if (Math.random() < 0.6) {
-                        pattern.add(i);
-                    }
-                }
-            }
-        } else if (['kick', 'snare'].includes(instrument)) {
-            if (Math.random() < 0.4) {
-                pattern.add(measureStart + Math.floor(Math.random() * 4));
-            }
-        }
-    }
-
-    // Синкопы
-    for (let i = 0; i < 3; i++) {
-        if (Math.random() < 0.5) {
-            pattern.add(Math.floor(Math.random() * 16));
-        }
+    });
+    
+    // Добавляем вариации (только в тактах 2-4)
+    const addVariations = Math.random() < 0.4; // 40% шанс на вариации
+    if (addVariations) {
+        // Выбираем один такт для вариации (только такты 2-4)
+        const variationMeasure = Math.floor(Math.random() * 3) + 1; // 1, 2 или 3
+        const measureStart = variationMeasure * 4;
+        
+        // Удаляем ноты в выбранном такте
+        pattern = new Set([...pattern].filter(beat => 
+            beat < measureStart || beat >= measureStart + 4
+        ));
+        
+        // Добавляем новую фигуру в этот такт
+        const variationFigure = rhythmicFigures[instrument][
+            Math.floor(Math.random() * rhythmicFigures[instrument].length)
+        ];
+        
+        variationFigure.forEach(beat => {
+            const adjustedBeat = measureStart + (beat % 4);
+            pattern.add(adjustedBeat);
+        });
     }
 
     // Превращаем в массив
     let result = Array.from(pattern);
 
-    // Лимиты
+    // Лимиты для разных инструментов (уменьшены, так как первый такт пустой)
     const limits = {
-        kick: { min: 2, max: 12 },
-        snare: { min: 2, max: 10 },
-        hihat: { min: 4, max: 16 },
-        ride: { min: 3, max: 14 }
+        kick: { min: 2, max: 6 },
+        snare: { min: 2, max: 5 },
+        hihat: { min: 3, max: 9 },
+        ride: { min: 3, max: 8 }
     };
 
+    // Обеспечиваем минимум и максимум нот (только в тактах 2-4)
     while (result.length < limits[instrument].min) {
-        const b = Math.floor(Math.random() * 16);
-        if (!result.includes(b)) {
-            result.push(b);
+        const beat = baseFigure[Math.floor(Math.random() * baseFigure.length)];
+        const measure = Math.floor(Math.random() * 3) + 1; // Только такты 2-4
+        const newBeat = measure * 4 + (beat % 4);
+        if (!result.includes(newBeat)) {
+            result.push(newBeat);
         }
     }
+    
     while (result.length > limits[instrument].max) {
-        const idx = Math.floor(Math.random() * result.length);
-        result.splice(idx, 1);
-    }
-
-    // Добавим акцент на сильную долю, если её нет
-    if ((instrument === 'kick' || instrument === 'snare') && Math.random() < 0.7) {
-        const hasStrong = result.some(b => b % 2 === 0);
-        if (!hasStrong) {
-            result.push(Math.floor(Math.random() * 8) * 2);
+        const nonAccentedNotes = result.filter(beat => beat % 4 !== 0);
+        if (nonAccentedNotes.length > 0) {
+            const idx = result.indexOf(nonAccentedNotes[
+                Math.floor(Math.random() * nonAccentedNotes.length)
+            ]);
+            result.splice(idx, 1);
+        } else {
+            const idx = Math.floor(Math.random() * result.length);
+            result.splice(idx, 1);
         }
     }
 
@@ -364,18 +367,14 @@ const generateRandomPattern = (instrument) => {
 // Генерация паттерна для всех включённых инструментов
 const updateRandomPatterns = () => {
     const newPatterns = {};
-    if (activeInstruments.kick) {
-        newPatterns.kick = generateRandomPattern('kick');
-    }
-    if (activeInstruments.snare) {
-        newPatterns.snare = generateRandomPattern('snare');
-    }
-    if (activeInstruments.hihat) {
-        newPatterns.hihat = generateRandomPattern('hihat');
-    }
-    if (activeInstruments.ride) {
-        newPatterns.ride = generateRandomPattern('ride');
-    }
+    
+    // Генерируем для каждого активного инструмента независимо
+    Object.keys(activeInstruments).forEach(instrument => {
+        if (activeInstruments[instrument]) {
+            newPatterns[instrument] = generateRandomPattern(instrument);
+        }
+    });
+    
     currentPatterns.value = newPatterns;
 };
 
@@ -426,36 +425,39 @@ const nextNote = () => {
 
 // Планировщик
 const scheduler = () => {
-    while (nextNoteTime.value < audioContext.value.currentTime + SCHEDULE_AHEAD_TIME) {
-        const soundTime = nextNoteTime.value;
-        const currentBeatValue = currentBeat.value;
-        
-        // Планируем звук для следующего бита
-        const nextBeat = (currentBeatValue + 1) % BEATS_TO_SHOW;
-        const VISUAL_DELAY = 0.15; // 150ms задержка для визуального обновления
-        
-        // Планируем звук на текущее время
-        scheduleNote(nextBeat, soundTime);
+    // Защита от множественных вызовов
+    if (!isPlaying.value) return;
 
-        // Рассчитываем задержку для визуального обновления (добавляем доп. задержку)
-        const visualDelayMs = ((soundTime + VISUAL_DELAY) - audioContext.value.currentTime) * 1000;
+    const currentTime = audioContext.value.currentTime;
+    
+    // Планируем звуки только если нужно
+    while (nextNoteTime.value < currentTime + SCHEDULE_AHEAD_TIME) {
+        const currentBeatValue = currentBeat.value;
+        const nextBeat = (currentBeatValue + 1) % BEATS_TO_SHOW;
+        
+        // Планируем звук с точным таймингом
+        scheduleNote(nextBeat, nextNoteTime.value);
 
         // Планируем визуальное обновление
+        const VISUAL_DELAY = 0.1; // Уменьшаем визуальную задержку
+        const visualTime = nextNoteTime.value - currentTime + VISUAL_DELAY;
+        
         setTimeout(() => {
-            currentBeat.value = nextBeat;
-            
-            // Если дошли до начала такта + включен рандом
-            if (currentBeat.value === 0 && isRandomPattern.value) {
-                updateRandomPatterns();
+            if (isPlaying.value) {
+                currentBeat.value = nextBeat;
+                
+                // Генерируем новый паттерн только если дошли до начала
+                if (nextBeat === 0 && isRandomPattern.value) {
+                    updateRandomPatterns();
+                }
             }
-        }, Math.max(0, visualDelayMs));
+        }, visualTime * 1000);
 
         nextNote();
     }
 
-    if (isPlaying.value) {
-        requestAnimationFrame(scheduler);
-    }
+    // Используем setTimeout вместо requestAnimationFrame для более точного тайминга
+    setTimeout(scheduler, CHECK_AHEAD_INTERVAL);
 };
 
 // Старт
@@ -467,11 +469,13 @@ const startPlaying = async () => {
         if (audioContext.value.state === 'suspended') {
             await audioContext.value.resume();
         }
-        currentBeat.value = 0;
+
+        currentBeat.value = BEATS_TO_SHOW - 1; // Начинаем с последнего бита
         isPlaying.value = true;
         nextNoteTime.value = audioContext.value.currentTime;
 
-        requestAnimationFrame(scheduler);
+        // Запускаем планировщик
+        scheduler();
     } catch (error) {
         console.error('Error starting playback:', error);
     }
