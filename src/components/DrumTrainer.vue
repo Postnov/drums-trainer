@@ -78,7 +78,7 @@
                                             'text-blue-500': currentBeat === beatIndex - 1,
                                             'text-gray-800': currentBeat !== beatIndex - 1
                                         }">
-                                            {{ noteSymbols[instrument] }}
+                                            <img :src="noteSymbols[instrument]" :alt="instrumentNames[instrument]" class="limb-icon" />
                                         </span>
                                     </div>
                                 </template>
@@ -140,32 +140,11 @@
                             </button>
                         </div>
                     </div>
-
-                    <!-- Громкость метронома -->
-                    <div class="mt-6">
-                        <div class="flex items-center justify-between mb-2">
-                            <label class="text-sm font-medium text-gray-700">
-                                Громкость метронома
-                            </label>
-                            <span class="text-sm text-gray-500">
-                                {{ Math.round(clickVolume * 100) }}%
-                            </span>
-                        </div>
-                        <input 
-                            type="range" 
-                            v-model="clickVolume" 
-                            min="0" 
-                            max="1" 
-                            step="0.1"
-                            class="volume-slider w-full" 
-                            @input="setClickVolume(clickVolume)"
-                        />
-                    </div>
                 </div>
 
                 <!-- Выбор инструментов -->
                 <div class="p-6 bg-gray-50 border-t border-gray-100">
-                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Инструменты</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Конечности</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div v-for="(active, instrument) in activeInstruments" 
                             :key="instrument"
@@ -180,7 +159,9 @@
                                 />
                             </div>
                             <label :for="instrument" class="flex-1 flex items-center cursor-pointer">
-                                <span class="note-symbol mr-2">{{ noteSymbols[instrument] }}</span>
+                                <span class="note-symbol mr-2">
+                                    <img :src="noteSymbols[instrument]" :alt="instrumentNames[instrument]" class="limb-icon" />
+                                </span>
                                 <span class="text-gray-700">{{ instrumentNames[instrument] }}</span>
                             </label>
                         </div>
@@ -211,25 +192,13 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, reactive, watch, computed } from 'vue';
-import {
-    createAudioContext,
-    createSound,
-    disposeAudioContext,
-    setClickVolume as audioSetClickVolume
-} from '../assets/audio.js';
-
-/**
- * Настраиваемая задержка:
- * - Положительная (например, 0.05) = звук позже, чем анимация.
- * - Отрицательная (например, -0.05) = звук раньше, чем анимация.
- * - 0 = почти одновременно (с учётом планирования).
- */
+import rightHandIcon from '../assets/legs-hands-icons/hand-right-icon.png';
+import leftHandIcon from '../assets/legs-hands-icons/hand-left-icon.png';
+import rightFootIcon from '../assets/legs-hands-icons/leg-right-icon.svg';
+import leftFootIcon from '../assets/legs-hands-icons/leg-left-icon.svg';
 
 // Количество отображаемых шагов (16 = 4 такта по 4 доли)
 const BEATS_TO_SHOW = 16;
-// Время, на которое мы планируем вперёд
-const SCHEDULE_AHEAD_TIME = 0.1; // Уменьшаем время планирования
-const CHECK_AHEAD_INTERVAL = 25; // Интервал проверки в миллисекундах
 
 // Темп (BPM)
 const tempo = ref(90);
@@ -237,10 +206,6 @@ const tempo = ref(90);
 // Флаг воспроизведения
 const isPlaying = ref(false);
 const currentBeat = ref(0);
-
-// Аудиоконтекст, планирование
-const audioContext = ref(null);
-const nextNoteTime = ref(0);
 
 // Выбор инструментов
 const activeInstruments = reactive({
@@ -258,33 +223,47 @@ const instrumentNames = {
     leftFoot: 'Левая нога',
 };
 
-// Символы
+// Иконки для конечностей
 const noteSymbols = {
-    rightHand: '👉',
-    leftHand: '👈',
-    rightFoot: '👟',
-    leftFoot: '👞',
+    rightHand: rightHandIcon,
+    leftHand: leftHandIcon,
+    rightFoot: rightFootIcon,
+    leftFoot: leftFootIcon,
 };
 
-// Базовые паттерны (упрощенные)
+// Текст иконок
+const iconText = {
+    rightHand: 'back_hand',
+    leftHand: 'back_hand',
+    rightFoot: 'do_not_step',
+    leftFoot: 'do_not_step',
+};
+
+// Базовые паттерны
 const rhythmPatterns = {
-    basic: {
-        rightHand: [0, 4, 8, 12],
-        leftHand: [2, 6, 10, 14],
-        rightFoot: [0, 8],
-        leftFoot: [4, 12]
+    pattern1: {
+        rightHand: [0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12],
+        leftHand: [2, 2, 2, 2, 6, 6, 6, 6, 10, 10, 10, 10, 14, 14, 14, 14],
+        rightFoot: [0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12],
+        leftFoot: [2, 2, 2, 2, 6, 6, 6, 6, 10, 10, 10, 10, 14, 14, 14, 14]
     },
-    alternate: {
-        rightHand: [0, 4, 8, 12],
-        leftHand: [2, 6, 10, 14],
+    pattern2: {
+        rightHand: [0, 4, 8, 12, 2, 6, 10, 14],
+        leftHand: [2, 6, 10, 14, 0, 4, 8, 12],
         rightFoot: [0, 4, 8, 12],
         leftFoot: [2, 6, 10, 14]
     },
-    syncopated: {
-        rightHand: [0, 3, 6, 9],
-        leftHand: [1, 4, 7, 10],
-        rightFoot: [2, 5, 8, 11],
-        leftFoot: [3, 6, 9, 12]
+    pattern3: {
+        rightHand: [0, 2, 2, 2, 4, 6, 6, 6, 8, 10, 10, 10, 12, 14, 14, 14],
+        leftHand: [2, 0, 0, 0, 6, 4, 4, 4, 10, 8, 8, 8, 14, 12, 12, 12],
+        rightFoot: [0, 4, 8, 12],
+        leftFoot: [2, 6, 10, 14]
+    },
+    pattern4: {
+        rightHand: [0, 1, 2, 3, 4, 5, 6, 7],
+        leftHand: [8, 9, 10, 11, 12, 13, 14, 15],
+        rightFoot: [0, 2, 4, 6],
+        leftFoot: [8, 10, 12, 14]
     }
 };
 
@@ -292,7 +271,7 @@ const rhythmPatterns = {
 const isRandomPattern = ref(false);
 
 // Текущее состояние паттернов
-const currentPatterns = ref({ ...rhythmPatterns.rock });
+const currentPatterns = ref({ ...rhythmPatterns.pattern1 });
 
 // Позиция инструмента по вертикали
 const getInstrumentPosition = (instrument) => {
@@ -310,109 +289,45 @@ const generateRandomPattern = (instrument) => {
     // Список базовых фигур для каждой конечности
     const rhythmicFigures = {
         rightHand: [
-            [0, 4, 8, 12], // Четверти
             [0, 2, 4, 6, 8, 10, 12, 14], // Восьмые
-            [0, 3, 6, 9, 12, 15], // Триоли
+            [0, 1, 2, 3, 8, 9, 10, 11], // Плотная группа
+            [0, 0, 4, 4, 8, 8, 12, 12], // Повторы
+            [0, 2, 2, 2, 4, 6, 6, 6], // Акценты с повторами
         ],
         leftHand: [
-            [2, 6, 10, 14], // Смещенные четверти
-            [1, 3, 5, 7, 9, 11, 13, 15], // Смещенные восьмые
-            [1, 4, 7, 10, 13], // Синкопы
+            [2, 4, 6, 8, 10, 12, 14, 0], // Смещенные восьмые
+            [4, 5, 6, 7, 12, 13, 14, 15], // Плотная группа смещенная
+            [2, 2, 6, 6, 10, 10, 14, 14], // Повторы смещенные
+            [2, 0, 0, 0, 6, 4, 4, 4], // Акценты с повторами смещенные
         ],
         rightFoot: [
-            [0, 8], // Половинные
             [0, 4, 8, 12], // Четверти
-            [0, 3, 6, 9, 12, 15], // Триоли
+            [0, 2, 4, 6], // Первая половина плотная
+            [0, 0, 4, 4, 8, 8, 12, 12], // С повторами
         ],
         leftFoot: [
-            [4, 12], // Смещенные половинные
             [2, 6, 10, 14], // Смещенные четверти
-            [1, 5, 9, 13], // Синкопы
+            [8, 10, 12, 14], // Вторая половина плотная
+            [2, 2, 6, 6, 10, 10, 14, 14], // С повторами смещенные
         ],
     };
 
-    let pattern = new Set();
-    
-    // Выбираем базовую фигуру для всего паттерна
     const baseFigure = rhythmicFigures[instrument][
         Math.floor(Math.random() * rhythmicFigures[instrument].length)
     ];
-    
-    // Применяем базовую фигуру, но сдвигаем все ноты на один такт вперед
-    baseFigure.forEach(beat => {
-        // Сдвигаем все ноты на 4 бита вперед (пропускаем первый такт)
-        const shiftedBeat = beat + 4;
-        if (shiftedBeat < BEATS_TO_SHOW) {
-            pattern.add(shiftedBeat);
-        }
-    });
-    
-    // Добавляем вариации (только в тактах 2-4)
-    const addVariations = Math.random() < 0.4; // 40% шанс на вариации
-    if (addVariations) {
-        const variationMeasure = Math.floor(Math.random() * 3) + 1;
-        const measureStart = variationMeasure * 4;
-        
-        pattern = new Set([...pattern].filter(beat => 
-            beat < measureStart || beat >= measureStart + 4
-        ));
-        
-        const variationFigure = rhythmicFigures[instrument][
-            Math.floor(Math.random() * rhythmicFigures[instrument].length)
-        ];
-        
-        variationFigure.forEach(beat => {
-            const adjustedBeat = measureStart + (beat % 4);
-            pattern.add(adjustedBeat);
-        });
-    }
 
-    let result = Array.from(pattern);
-
-    // Лимиты для разных конечностей
-    const limits = {
-        rightHand: { min: 2, max: 8 },
-        leftHand: { min: 2, max: 8 },
-        rightFoot: { min: 2, max: 6 },
-        leftFoot: { min: 2, max: 6 }
-    };
-
-    while (result.length < limits[instrument].min) {
-        const beat = baseFigure[Math.floor(Math.random() * baseFigure.length)];
-        const measure = Math.floor(Math.random() * 3) + 1;
-        const newBeat = measure * 4 + (beat % 4);
-        if (!result.includes(newBeat)) {
-            result.push(newBeat);
-        }
-    }
-    
-    while (result.length > limits[instrument].max) {
-        const nonAccentedNotes = result.filter(beat => beat % 4 !== 0);
-        if (nonAccentedNotes.length > 0) {
-            const idx = result.indexOf(nonAccentedNotes[
-                Math.floor(Math.random() * nonAccentedNotes.length)
-            ]);
-            result.splice(idx, 1);
-        } else {
-            const idx = Math.floor(Math.random() * result.length);
-            result.splice(idx, 1);
-        }
-    }
-
-    return result.sort((a, b) => a - b);
+    // Возвращаем фигуру целиком, без модификаций
+    return [...baseFigure];
 };
 
 // Генерация паттерна для всех включённых инструментов
 const updateRandomPatterns = () => {
     const newPatterns = {};
-    
-    // Генерируем для каждого активного инструмента независимо
     Object.keys(activeInstruments).forEach(instrument => {
         if (activeInstruments[instrument]) {
             newPatterns[instrument] = generateRandomPattern(instrument);
         }
     });
-    
     currentPatterns.value = newPatterns;
 };
 
@@ -421,108 +336,84 @@ const generateNewPattern = () => {
     if (isRandomPattern.value) {
         updateRandomPatterns();
     } else {
-        // Выбираем случайный стиль из rhythmPatterns
         const styles = Object.keys(rhythmPatterns);
         const randomStyle = styles[Math.floor(Math.random() * styles.length)];
-        const base = { ...rhythmPatterns[randomStyle] };
-
-        // Добавим маленькие вариации
-        Object.keys(base).forEach(instr => {
-            if (Math.random() < 0.3) {
-                const rnd = Math.floor(Math.random() * 16);
-                if (!base[instr].includes(rnd)) {
-                    base[instr].push(rnd);
-                    base[instr].sort((a, b) => a - b);
-                }
-            }
-        });
-
-        currentPatterns.value = base;
+        currentPatterns.value = { ...rhythmPatterns[randomStyle] };
     }
 };
 
-// Проигрываем звуки
-const scheduleNote = (beatNumber, time) => {
+// Создаем аудио контекст для метронома
+const audioContext = ref(null);
+
+// Функция для создания звука метронома
+const createClickSound = async () => {
+    audioContext.value = new (window.AudioContext || window.webkitAudioContext)();
+};
+
+// Функция для воспроизведения звука метронома
+const playClick = () => {
     if (!audioContext.value) return;
-
-    // Инструменты
-    for (const [instrument, pattern] of Object.entries(currentPatterns.value)) {
-        if (activeInstruments[instrument] && pattern.includes(beatNumber)) {
-            createSound(audioContext.value, instrument, time);
-        }
-    }
-    // Метроном
-    createSound(audioContext.value, 'click', time);
-};
-
-// Сдвигаем временную метку вперёд
-const nextNote = () => {
-    const secondsPerBeat = 60.0 / tempo.value;
-    nextNoteTime.value += secondsPerBeat;
-};
-
-// Планировщик
-const scheduler = () => {
-    // Защита от множественных вызовов
-    if (!isPlaying.value) return;
-
-    const currentTime = audioContext.value.currentTime;
     
-    // Планируем звуки только если нужно
-    while (nextNoteTime.value < currentTime + SCHEDULE_AHEAD_TIME) {
-        const currentBeatValue = currentBeat.value;
-        const nextBeat = (currentBeatValue + 1) % BEATS_TO_SHOW;
-        
-        // Планируем звук с точным таймингом
-        scheduleNote(nextBeat, nextNoteTime.value);
-
-        // Планируем визуальное обновление
-        const VISUAL_DELAY = 0.1; // Уменьшаем визуальную задержку
-        const visualTime = nextNoteTime.value - currentTime + VISUAL_DELAY;
-        
-        setTimeout(() => {
-            if (isPlaying.value) {
-                currentBeat.value = nextBeat;
-                
-                // Генерируем новый паттерн только если дошли до начала
-                if (nextBeat === 0 && isRandomPattern.value) {
-                    updateRandomPatterns();
-                }
-            }
-        }, visualTime * 1000);
-
-        nextNote();
-    }
-
-    // Используем setTimeout вместо requestAnimationFrame для более точного тайминга
-    setTimeout(scheduler, CHECK_AHEAD_INTERVAL);
+    const oscillator = audioContext.value.createOscillator();
+    const gainNode = audioContext.value.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.value.destination);
+    
+    oscillator.frequency.value = 1000;
+    gainNode.gain.value = 0.1;
+    
+    const now = audioContext.value.currentTime;
+    
+    gainNode.gain.setValueAtTime(0.1, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    
+    oscillator.start(now);
+    oscillator.stop(now + 0.05);
 };
+
+// Обновление визуального состояния и воспроизведение метронома
+const updateVisualState = () => {
+    if (!isPlaying.value) return;
+    
+    currentBeat.value = (currentBeat.value + 1) % BEATS_TO_SHOW;
+    playClick(); // Воспроизводим звук метронома
+    
+    if (currentBeat.value === 0 && isRandomPattern.value) {
+        updateRandomPatterns();
+    }
+};
+
+// Добавим ref для хранения текущего таймаута
+const currentTimeout = ref(null);
 
 // Старт
-const startPlaying = async () => {
-    try {
-        if (!audioContext.value) {
-            audioContext.value = await createAudioContext();
-        }
-        if (audioContext.value.state === 'suspended') {
-            await audioContext.value.resume();
-        }
-
-        currentBeat.value = BEATS_TO_SHOW - 1; // Начинаем с последнего бита
-        isPlaying.value = true;
-        nextNoteTime.value = audioContext.value.currentTime;
-
-        // Запускаем планировщик
-        scheduler();
-    } catch (error) {
-        console.error('Error starting playback:', error);
+const startPlaying = () => {
+    if (isPlaying.value) return;
+    
+    isPlaying.value = true;
+    const interval = 60000 / tempo.value; // миллисекунды между битами
+    
+    function tick() {
+        if (!isPlaying.value) return;
+        
+        updateVisualState();
+        // Сохраняем ссылку на таймаут
+        currentTimeout.value = setTimeout(tick, interval);
     }
+    
+    tick();
 };
 
 // Стоп
 const stopPlaying = () => {
     isPlaying.value = false;
     currentBeat.value = 0;
+    // Очищаем таймаут при остановке
+    if (currentTimeout.value) {
+        clearTimeout(currentTimeout.value);
+        currentTimeout.value = null;
+    }
 };
 
 // Тоггл
@@ -534,9 +425,14 @@ const togglePlaying = () => {
     }
 };
 
-// При изменении темпа (на лету) — перезапустим
+// При изменении темпа
 watch(tempo, () => {
     if (isPlaying.value) {
+        // Очищаем текущий таймаут перед перезапуском
+        if (currentTimeout.value) {
+            clearTimeout(currentTimeout.value);
+            currentTimeout.value = null;
+        }
         stopPlaying();
         startPlaying();
     }
@@ -545,18 +441,11 @@ watch(tempo, () => {
 // Следим за "Случайным ритмом"
 watch(isRandomPattern, (val) => {
     if (!val) {
-        // Возвращаем "rock" по умолчанию
-        currentPatterns.value = { ...rhythmPatterns.rock };
+        currentPatterns.value = { ...rhythmPatterns.pattern1 };
     } else {
         updateRandomPatterns();
     }
 });
-
-// Громкость метронома
-const clickVolume = ref(0.3);
-const setClickVolume = (vol) => {
-    audioSetClickVolume(vol);
-};
 
 // Computed property для проверки активных инструментов
 const isAnyInstrumentActive = computed(() => {
@@ -564,10 +453,15 @@ const isAnyInstrumentActive = computed(() => {
 });
 
 // При размонтировании
-onMounted(() => { });
+onMounted(async () => {
+    await createClickSound();
+});
+
 onUnmounted(() => {
     stopPlaying();
-    disposeAudioContext();
+    if (audioContext.value) {
+        audioContext.value.close();
+    }
 });
 </script>
 
@@ -610,16 +504,6 @@ onUnmounted(() => {
         transition-all duration-200 shadow-sm hover:shadow;
     }
 
-    .volume-slider {
-        @apply h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer;
-    }
-
-    .volume-slider::-webkit-slider-thumb {
-        @apply appearance-none w-4 h-4 bg-gray-600 rounded-full cursor-pointer
-        hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2
-        transition-all duration-200 shadow-sm hover:shadow;
-    }
-
     .instrument-checkbox {
         @apply h-5 w-5 text-blue-600 rounded border-gray-300 
         focus:ring-blue-500 focus:ring-offset-0 cursor-pointer
@@ -636,6 +520,28 @@ onUnmounted(() => {
         @apply text-lg font-bold inline-flex items-center justify-center transition-all duration-150;
         width: 24px;
         height: 24px;
+    }
+
+    .limb-icon {
+        @apply w-full h-full object-contain;
+    }
+
+    /* Стили для рук (зеленый) */
+    .note-symbol img[src*="hand-"] {
+        filter: brightness(0) saturate(100%) invert(68%) sepia(74%) 
+            saturate(385%) hue-rotate(67deg) brightness(95%) contrast(87%);
+    }
+
+    /* Стили для ног (красный) */
+    .note-symbol img[src*="leg-"] {
+        filter: brightness(0) saturate(100%) invert(27%) sepia(51%) 
+            saturate(2878%) hue-rotate(346deg) brightness(118%) contrast(97%);
+    }
+
+    /* Активные иконки (синий) */
+    .text-blue-500 .limb-icon {
+        filter: brightness(0) saturate(100%) invert(48%) sepia(79%) 
+            saturate(2476%) hue-rotate(200deg) brightness(118%) contrast(119%);
     }
 }
 </style>
