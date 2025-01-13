@@ -4,72 +4,76 @@
         <div class="p-6">
             <div class="relative border rounded-xl p-6 bg-white shadow-inner">
                 <!-- Таймлайн с числами -->
-                <div class="relative h-10 border-b border-gray-200 mb-4">
-                    <div class="absolute inset-0 grid"
-                        :style="{ gridTemplateColumns: `repeat(${BEATS_TO_SHOW}, 1fr)` }">
-                        <div v-for="beat in BEATS_TO_SHOW" :key="beat" class="relative">
-                            <div class="absolute h-4 border-l" :class="{
-                                'border-gray-800': (beat - 1) % 4 === 0,
-                                'border-gray-200': (beat - 1) % 4 !== 0
-                            }"></div>
-                            <div class="absolute top-5 text-xs text-gray-600" :style="{ left: '-4px' }">
-                                {{ beat }}
+                <div class="relative h-[250px]">
+                    <!-- Числа сверху -->
+                    <div class="absolute top-0 left-0 right-0 h-10 border-b border-gray-200">
+                        <div class="absolute inset-0 grid"
+                            :style="{ gridTemplateColumns: `repeat(${BEATS_TO_SHOW}, 1fr)` }">
+                            <div v-for="beat in BEATS_TO_SHOW" :key="beat" class="relative">
+                                <div class="absolute h-4 border-l" :class="{
+                                    'border-gray-800': (beat - 1) % 4 === 0,
+                                    'border-gray-200': (beat - 1) % 4 !== 0
+                                }"></div>
+                                <div class="absolute top-0 text-xs text-gray-600" :style="{ left: '-4px' }">
+                                    {{ beat }}
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Курсор таймлайна -->
-                    <div class="playhead absolute top-0 h-full bg-blue-500" :style="{
+                    <div class="playhead absolute top-0 h-full w-[2px] bg-blue-500" :style="{
                         left: `${(currentBeat) * (100 / BEATS_TO_SHOW)}%`,
                         opacity: isPlaying ? 0.75 : 0.25
                     }"></div>
-                </div>
 
-                <div class="relative h-[200px]">
-                    <!-- Горизонтальные линии нотного стана -->
-                    <div v-for="line in 5" :key="`staff-${line}`" 
-                        class="absolute w-full h-[1px] bg-gray-200"
-                        :style="{ top: `${(line - 1) * 40}px` }">
-                    </div>
-
-                    <!-- Вертикальные разделители тактов -->
-                    <div class="absolute inset-0 grid"
-                        :style="{ gridTemplateColumns: `repeat(${BEATS_TO_SHOW}, 1fr)` }">
-                        <div v-for="beat in BEATS_TO_SHOW" :key="`bar-${beat}`" 
-                            class="border-l" 
-                            :class="{
-                                'border-gray-300': (beat - 1) % 4 !== 0,
-                                'border-gray-400 border-l-2': (beat - 1) % 4 === 0
-                            }">
+                    <!-- Нотный стан -->
+                    <div class="relative h-[200px] mt-10">
+                        <!-- Горизонтальные линии нотного стана -->
+                        <div v-for="line in 5" :key="`staff-${line}`" 
+                            class="absolute w-full h-[1px] bg-gray-200"
+                            :style="{ top: `${(line - 1) * 40}px` }">
                         </div>
-                    </div>
 
-                    <!-- Ноты -->
-                    <div v-for="beatIndex in BEATS_TO_SHOW" :key="`beat-${beatIndex}`" 
-                        class="absolute h-full" 
-                        :style="{
-                            left: `${(beatIndex - 1) * (100 / BEATS_TO_SHOW)}%`,
-                            width: '2px'
-                        }">
-                        <template v-for="(pattern, instrument) in currentPatterns"
-                            :key="`note-${instrument}-${beatIndex}`">
-                            <div v-if="activeInstruments[instrument] && pattern.includes(beatIndex - 1)"
-                                class="absolute flex items-center justify-center w-6 h-6 transition-all duration-150" 
+                        <!-- Вертикальные разделители тактов -->
+                        <div class="absolute inset-0 grid"
+                            :style="{ gridTemplateColumns: `repeat(${BEATS_TO_SHOW}, 1fr)` }">
+                            <div v-for="beat in BEATS_TO_SHOW" :key="`bar-${beat}`" 
+                                class="border-l" 
                                 :class="{
-                                    'scale-110': currentBeat === beatIndex - 1
-                                }"
-                                :style="{
-                                    top: `${getInstrumentPosition(instrument) - 12}px`,
-                                    left: '-12px'
+                                    'border-gray-300': (beat - 1) % 4 !== 0,
+                                    'border-gray-400 border-l-2': (beat - 1) % 4 === 0
                                 }">
-                                <span class="note-symbol" :class="{ 
-                                    'text-blue-500': currentBeat === beatIndex - 1,
-                                    'text-gray-800': currentBeat !== beatIndex - 1
-                                }">
-                                    {{ noteSymbols[instrument] }}
-                                </span>
                             </div>
-                        </template>
+                        </div>
+
+                        <!-- Ноты -->
+                        <div v-for="beatIndex in BEATS_TO_SHOW" :key="`beat-${beatIndex}`" 
+                            class="absolute h-full" 
+                            :style="{
+                                left: `${(beatIndex - 1) * (100 / BEATS_TO_SHOW)}%`,
+                                width: '2px'
+                            }">
+                            <template v-for="(pattern, instrument) in currentPatterns"
+                                :key="`note-${instrument}-${beatIndex}`">
+                                <div v-if="activeInstruments[instrument] && pattern.includes(beatIndex - 1)"
+                                    class="absolute flex items-center justify-center w-6 h-6 transition-all duration-150" 
+                                    :class="{
+                                        'scale-110': currentBeat === beatIndex - 1
+                                    }"
+                                    :style="{
+                                        top: `${getInstrumentPosition(instrument) - 12}px`,
+                                        left: '-12px'
+                                    }">
+                                    <span class="note-symbol" :class="{ 
+                                        'text-blue-500': currentBeat === beatIndex - 1,
+                                        'text-gray-800': currentBeat !== beatIndex - 1
+                                    }">
+                                        {{ noteSymbols[instrument] }}
+                                    </span>
+                                </div>
+                            </template>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -482,7 +486,7 @@ const scheduler = () => {
         scheduleNote(nextBeat, nextNoteTime.value);
 
         // Планируем визуальное обновление
-        const VISUAL_DELAY = 0.1; // Уменьшаем визуальную задержку
+        const VISUAL_DELAY = 0.0; // Уменьшаем визуальную задержку
         const visualTime = nextNoteTime.value - currentTime + VISUAL_DELAY;
         
         setTimeout(() => {
