@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Базовые стили */
+body {
+    @apply bg-gray-100 min-h-screen;
+}
+
+/* Стили для нотного стана */
+.staff-line {
+    @apply absolute w-full h-[1px] bg-gray-300;
+}
+
+.beat-line {
+    @apply absolute h-full border-l border-gray-400;
+}
+
+.beat-number {
+    @apply absolute text-xs text-gray-600;
+}
+
+/* Стили для инструментов */
+.instrument-label {
+    @apply text-sm flex items-center space-x-2;
+}
+
+.note-symbol {
+    @apply text-lg;
+}
+
+/* Стили для элементов управления */
+.tempo-slider {
+    @apply w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer;
+}
+
+.tempo-slider::-webkit-slider-thumb {
+    @apply appearance-none w-4 h-4 bg-blue-500 rounded-full cursor-pointer;
+}
+
+.instrument-checkbox {
+    @apply w-4 h-4 text-blue-500 rounded focus:ring-blue-500;
+}
+
+/* Стили для курсора воспроизведения */
+.playhead {
+    @apply absolute top-0 bottom-0 w-0.5 bg-red-500 z-10;
+} 
