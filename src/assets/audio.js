@@ -26,12 +26,15 @@ export const createAudioContext = async () => {
         clickGain.gain.value = 0.3; // Начальная громкость
         clickGain.connect(audioCtx.destination);
 
-        // Загружаем семплы (укажите правильные пути к .wav/.mp3)
+        // Определяем базовый путь в зависимости от режима
+        const basePath = import.meta.env.DEV ? '/src/assets/sounds/' : './assets/sounds/';
+
+        // Загружаем семплы
         await Promise.all([
-            loadSound('kick', '/src/assets/sounds/bochka.wav'),
-            loadSound('snare', '/src/assets/sounds/malyiy-baraban.wav'),
-            loadSound('hihat', '/src/assets/sounds/hay-het.wav'),
-            loadSound('ride', '/src/assets/sounds/ride.wav')
+            loadSound('kick', `${basePath}bochka.wav`),
+            loadSound('snare', `${basePath}malyiy-baraban.wav`),
+            loadSound('hihat', `${basePath}hay-het.wav`),
+            loadSound('ride', `${basePath}ride.wav`)
         ]);
 
         console.log('Audio context и семплы готовы!');

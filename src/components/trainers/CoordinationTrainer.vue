@@ -609,6 +609,16 @@ defineExpose({
         @apply w-full h-full object-contain;
     }
 
+    /* Поворот для правых конечностей */
+    .note-symbol img[src*="right"] {
+        transform: rotate(-10deg);
+    }
+
+    /* Поворот для левых конечностей */
+    .note-symbol img[src*="left"] {
+        transform: rotate(10deg);
+    }
+
     /* Тонировка иконок рук (зелёный) */
     .note-symbol img[src*="hand-"] {
         filter: brightness(0) saturate(100%) invert(68%) sepia(74%) saturate(385%) hue-rotate(67deg) brightness(95%) contrast(87%);
